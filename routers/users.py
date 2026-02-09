@@ -118,7 +118,41 @@ async def get_user_job_posts(user_id: int, db: Annotated[AsyncSession, Depends(g
         data=jobs
     )
 
-# 5. UPDATE USER
+# UPDATE USER ME
+@router.patch("/me", response_model=APIResponse[UserPrivate])
+async def update_user_me(
+    user_update: UserUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[models.User, Depends(get_current_user)]
+):
+    """
+    Update current user's profile (Username, Email, Company Name, etc.)
+    """
+    # 1. Update fields if they are provided
+    if user_update.username:
+        current_user.username = user_update.username
+    if user_update.email:
+        current_user.email = user_update.email
+    
+    # This is the important one for you now! 
+    if user_update.company_name:
+        current_user.company_name = user_update.company_name
+        
+    if user_update.image_file:
+        current_user.image_file = user_update.image_file
+
+    # 2. Save to DB
+    await db.commit()
+    await db.refresh(current_user)
+
+    return APIResponse(
+        success=True,
+        message="Profile updated successfully",
+        data=current_user
+    )
+
+
+# 6. UPDATE USER
 @router.patch("/{user_id}", response_model=APIResponse[UserPrivate])
 async def update_user(
     user_id: int,
@@ -169,7 +203,7 @@ async def update_user(
         data=user
     )
 
-# 6. DELETE USER (Protected)
+# 7. DELETE USER (Protected)
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int, 

@@ -4,11 +4,12 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from services.ai import get_embedding
 import models
 from database import get_db
-from schemas import JobCreate, JobResponse, JobUpdate, APIResponse
+from schemas import JobCreate, JobResponse, JobUpdate, APIResponse, MatchRequest, JobMatchResponse
 from dependencies import get_current_user
+from services.ai import get_embedding
 
 router = APIRouter()
 
@@ -83,12 +84,26 @@ async def create_job(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[models.User, Depends(get_current_user)]
 ):
+    # Role check
     if current_user.role not in [models.Role.OWNER, models.Role.ADMIN]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only recruiters can post jobs")
     
+    # Does the user have a company name? Check
+    if not current_user.company_name:
+         raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="You must set a 'Company Name' in your profile before posting jobs."
+        )
+    
+    # Prepare the AI data
+    skills_text = " ".join(job_data.skills)
+    embedding = get_embedding(skills_text)
+
     new_job = models.Job(
         **job_data.model_dump(),
-        owner_id=current_user.id
+        company=current_user.company_name,
+        owner_id=current_user.id,
+        skills_embedding=embedding
     )
 
     db.add(new_job)
@@ -99,6 +114,47 @@ async def create_job(
         success=True, 
         message="Job posted successfully", 
         data=new_job
+    )
+
+# AI ENDPOINT
+@router.post("/match", response_model=APIResponse[list[JobMatchResponse]])
+async def match_jobs(
+    match_data: MatchRequest,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    # A. Generate the User's Vector
+    user_query = " ".join(match_data.skills)
+    user_embedding = get_embedding(user_query)
+
+    # B. The Vector Search Query (PostgreSQL Magic)
+    query = (
+        select(models.Job, models.Job.skills_embedding.l2_distance(user_embedding).label("distance"))
+        .options(selectinload(models.Job.owner))
+        .order_by(models.Job.skills_embedding.l2_distance(user_embedding))
+        .limit(match_data.limit)
+    )
+
+    result = await db.execute(query)
+    matches = result.all() 
+
+    # C. Format the Response
+    response_data = []
+    for job, distance in matches:
+        # Convert distance to a "Score" (0 to 100%)
+        # L2 distance usually ranges 0 to 2 for normalized vectors.
+        # This is a rough heuristic: Score = 1 / (1 + distance)
+        score = 1 / (1 + distance) 
+        
+        # Attach score to the job object
+        job_dict = job.__dict__
+        job_dict["match_score"] = round(score * 100, 1) 
+        
+        response_data.append(job_dict)
+
+    return APIResponse(
+        success=True,
+        message=f"Found {len(response_data)} jobs matching your skills",
+        data=response_data
     )
 
 

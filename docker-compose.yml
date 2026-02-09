@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: always
+    environment:
+      POSTGRES_USER: lokerin
+      POSTGRES_PASSWORD: lokerin123
+      POSTGRES_DB: lokerin_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

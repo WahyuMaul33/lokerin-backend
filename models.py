@@ -1,8 +1,9 @@
 from __future__ import annotations
 from enum import Enum
 from datetime import datetime, timezone
-from sqlalchemy import Integer, String, Boolean, Text, Enum as SQLAEnum, ForeignKey, DateTime
+from sqlalchemy import Integer, String, Boolean, Text, Enum as SQLAEnum, ForeignKey, DateTime, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector 
 
 from database import Base
 
@@ -53,7 +54,10 @@ class Job(Base):
     salary: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
-    
+
+    skills: Mapped[list|str] = mapped_column(ARRAY(String), nullable=False, default=list)
+    skills_embedding: Mapped[int] = mapped_column(Vector(384), nullable=True)
+
     # Link to User
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     

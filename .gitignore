@@ -11,6 +11,7 @@ env/
 # Database 
 *.db
 *.sqlite3
+postgres_data/
 
 # OS junk
 .DS_Store

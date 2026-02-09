@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,11 +14,19 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Create tables and enable pgvector
     async with engine.begin() as conn:
+        # Enable pgvector extension
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        
+        # Create all tables
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    await engine.dispose()
     
+    yield
+    
+    # Shutdown
+    await engine.dispose()
+
 app = FastAPI(
     title="LokerIn API",
     version="1.0.0",
@@ -35,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+#app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # API Versioning
 API_PREFIX = "/api/v1"
