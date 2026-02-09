@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from typing import Optional, Generic, TypeVar
 from datetime import datetime
-from models import Role 
+from models import Role, ApplicationStatus
 
 T = TypeVar('T')
 
@@ -83,6 +83,7 @@ class JobResponse(JobBase):
     job_posted: datetime
     owner: UserPublic
 
+# --- AI DATA SCHEMAS ---
 
 # 1. Input Schema for Matching
 class MatchRequest(BaseModel):
@@ -92,3 +93,25 @@ class MatchRequest(BaseModel):
 # 2. Output Schema (Job + Score)
 class JobMatchResponse(JobResponse):
     match_score: float #Add a % score to the standard job response
+
+
+# --- APPLICATION SCHEMAS ---
+
+class ApplicationCreate(BaseModel):
+    cv_file: Optional[str] = None 
+    cover_letter: Optional[str] = None 
+
+class ApplicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    user_id: int
+    job_id: int
+    status: ApplicationStatus  
+    cv_file: Optional[str] = None
+    applied_at: datetime
+    
+    #job: JobBase # Nest job to see what they applied to
+
+class ApplicationStatusUpdate(BaseModel):
+    status: ApplicationStatus

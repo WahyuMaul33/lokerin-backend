@@ -42,13 +42,18 @@ async def create_user(
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Only recruiters (OWNER) should have a company name.
+    user_company = None
+    if user.role == models.Role.OWNER:
+        user_company = user.company_name
+
     # Create User
     new_user = models.User(
         username=user.username,
         email=user.email.lower(),
         hashed_password=hash_password(user.password), 
         role=user.role,               
-        company_name=user.company_name 
+        company_name=user_company 
     )
     
     db.add(new_user)
@@ -57,7 +62,7 @@ async def create_user(
 
     return APIResponse(
         success=True, 
-        message="User created successfully", 
+        message=f"User registered successfully as {user.role}", 
         data=new_user
     )
     

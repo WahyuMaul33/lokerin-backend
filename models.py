@@ -1,17 +1,22 @@
 from __future__ import annotations
 from enum import Enum
 from datetime import datetime, timezone
-from sqlalchemy import Integer, String, Boolean, Text, Enum as SQLAEnum, ForeignKey, DateTime, ARRAY
+from sqlalchemy import Column, Integer, String, Boolean, Text, Enum as SQLAEnum, ForeignKey, DateTime, ARRAY, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector 
-
+import enum
 from database import Base
 
 # 1. The Role Enum 
-class Role(str, Enum):
+class Role(str, enum.Enum):
     ADMIN = "ADMIN"
     OWNER = "OWNER"   # Recruiter
     SEEKER = "SEEKER" # Job Hunter
+
+class ApplicationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
 
 # 2. The User Data
 class User(Base):
@@ -38,6 +43,7 @@ class User(Base):
     
     # Relationships
     jobs: Mapped[list["Job"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def image_path(self) -> str:
@@ -66,4 +72,35 @@ class Job(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    # Relationships
     owner: Mapped["User"] = relationship(back_populates="jobs")
+    applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
+
+#4. Application Data
+class Application(Base):
+    __tablename__ = "applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Who applied?
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # To which job?
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    
+    # Status
+    status = Column(SQLAEnum(ApplicationStatus), default=ApplicationStatus.PENDING, nullable=False)
+    
+    # CV File 
+    cv_file = Column(String, nullable=True) 
+    
+    applied_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    user = relationship("User", back_populates="applications")
+    job = relationship("Job", back_populates="applications")
+
+    # Prevent duplicate applications
+    __table_args__ = (
+        UniqueConstraint('user_id', 'job_id', name='unique_application_per_user'),
+    )

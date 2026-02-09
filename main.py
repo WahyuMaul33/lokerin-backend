@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 from database import Base, engine
-from routers import jobs, users, auth
+from routers import jobs, users, auth,applications
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=f"{API_PREFIX}/auth", tags=["Auth"])
 app.include_router(users.router, prefix=f"{API_PREFIX}/users", tags=["Users"])
 app.include_router(jobs.router, prefix=f"{API_PREFIX}/jobs", tags=["Jobs"])
+app.include_router(applications.router, prefix=f"{API_PREFIX}", tags=["Applications"])
 
 @app.get("/", tags=["Health"])
 async def health_check():
