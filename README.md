@@ -36,7 +36,7 @@ graph TD
 ### 🧠 AI & Vector Search Engine
 * **Semantic Resume Matching**: Uses *Cosine Similarity* to match candidates to jobs based on *meaning* (e.g., matching "React" skills to "Frontend" jobs), not just keywords.
 * **Automated Vectorization**: Automatically generates 384-dimensional vector embeddings (`all-MiniLM-L6-v2`) whenever a job is posted or updated.
-* **Hybrid Search Architecture**: Combines traditional SQL filters (Location, Salary) with AI-powered semantic search for high-precision results.
+* **Hybrid Search Architecture**: Combines traditional SQL filters (Location, Salary) with AI-powered semantic search for more precision results.
 * **Dynamic Re-Embedding**: Smart triggers that detect text changes in job descriptions and instantly regenerate vector embeddings to keep search accurate.
 
 ### ⚙️ Backend Engineering
