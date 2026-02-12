@@ -1,15 +1,15 @@
-version: '3.9'
-
 services:
   db:
     image: pgvector/pgvector:pg16
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: lokerin
-      POSTGRES_PASSWORD: lokerin123
-      POSTGRES_DB: lokerin_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5435:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

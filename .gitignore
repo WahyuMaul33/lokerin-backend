@@ -1,25 +1,25 @@
-# Python
+# 1. Security
+.env
+.env.prod
+.env.local
+
+# 2. Python System Files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual Environment 
+# 3. Virtual Environment 
+.venv/
 venv/
 env/
-.env
 
-# Database 
-*.db
-*.sqlite3
-postgres_data/
-
-# OS junk
-.DS_Store
-Thumbs.db
-
-# IDE settings
+# 4. IDE Settings 
 .vscode/
 .idea/
 
-# Static
-static/resumes/
+# 5. Local Database Files
+*.db
+*.sqlite3
+
+# 6. Logs
+*.log

@@ -1,41 +1,49 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from config import settings
 
-# tell sqlalchemy to use postgre database (where to connect)
-SQLALCHEMY_DATABASE_URL = (
-    f"postgresql+asyncpg://{settings.db_user}:{settings.db_password}"
-    f"@{settings.db_host}:{settings.db_port}/{settings.db_name}"
-)
-
- # Our connection to the database
+# 1. Create the Async Engine
 engine = create_async_engine(
-    SQLALCHEMY_DATABASE_URL, 
-    echo=True,
-    pool_pre_ping=True,
+    settings.database_url, 
+    echo=True,          # Log SQL queries to console
+    pool_pre_ping=True, # Checks connection health before using it
 )
 
-# create a session factory // session is transaction with the database, each request gets its own session
+# 2. Create Session Factory
 AsyncSessionLocal = async_sessionmaker(
-    engine,
+    bind=engine,
     class_=AsyncSession,
-    expire_on_commit=False
+    expire_on_commit=False, # Prevent SQLAlchemy from refreshing objects immediately after commit
+    autoflush=False
 ) 
 
+# 3. Base Model
 class Base(DeclarativeBase):
     pass
 
-# Dependency Generator
+# 4. Dependency Injection
 async def get_db():
+    """
+    **Database Session Dependency**
+    
+    Creates a new database session for a request and closes it when finished.
+    Usage: `db: Annotated[AsyncSession, Depends(get_db)]`
+    """
     async with AsyncSessionLocal() as session:
         yield session
-        
-#Enable pgvector Extension
-async def init_db():
-    """ Initialize database with pgvector extension"""
-    async with engine.begin() as conn:
-        #enable pgvector
-        await conn.execute("CREATE EXTENSION IF NOT EXIST")
-        #create tables
-        await conn.run_sync(Base.metadata.create_all)
 
+# 5. Database Initialization (Run on startup)
+async def init_db():
+    """ 
+    **Initialize Database**
+    
+    1. Connects to the DB.
+    2. Enables the `vector` extension (Critical for AI features).
+    3. Creates all tables defined in `models.py`.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        
+        # Create all tables (User, Job, UserProfile, etc.)
+        await conn.run_sync(Base.metadata.create_all)

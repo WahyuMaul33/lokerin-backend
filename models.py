@@ -7,19 +7,25 @@ from pgvector.sqlalchemy import Vector
 import enum
 from database import Base
 
-# 1. The Role Enum 
+# --- ENUMS ---
 class Role(str, enum.Enum):
     ADMIN = "ADMIN"
-    OWNER = "OWNER"   # Recruiter
-    SEEKER = "SEEKER" # Job Hunter
+    OWNER = "OWNER"   # Recruiter / Employer
+    SEEKER = "SEEKER" # Job Seeker / Candidate
 
 class ApplicationStatus(str, enum.Enum):
+    """ Tracks the lifecycle of a job application """
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
 
-# 2. The User Data
+
+# --- MODELS ---
 class User(Base):
+    """
+    **User Table**
+    Stores authentication details and basic profile info for all user types.
+    """
     __tablename__ = "users"
 
     # Core Auth Data
@@ -42,17 +48,52 @@ class User(Base):
     resume_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     # Relationships
+    # 'jobs': Jobs posted by this user (if Recruiter)
     jobs: Mapped[list["Job"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    # 'applications': Jobs this user has applied to (if Seeker)
     applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
+    # 'profile': Detailed CV data (if Seeker)
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     @property
     def image_path(self) -> str:
         return f"/static/profile_pics/{self.image_file}"
 
-# 3. The Job Data
+class UserProfile(Base):
+    """
+    **User Profile Table (CV Data)**
+    Stores detailed data parsed from the user's uploaded Resume (PDF).
+    This is separate from the User table to keep the auth table lightweight.
+    """
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+
+    # Parsed Data
+    full_name = Column(String, nullable=True)
+    bio = Column(String, nullable=True) # Extracted summary
+    skills = Column(ARRAY(String), default=[]) # e.g. ["Python", "Docker"]
+    experience_years = Column(Integer, default=0)
+
+    # File Reference
+    resume_url = Column(String, nullable=True)
+
+    # AI BRAIN: The Vector Embedding of the user's CV
+    profile_embedding = Column(Vector(384))
+
+    # Relationship
+    user = relationship("User", back_populates="profile")
+
+
 class Job(Base):
+    """
+    **Job Table**
+    Stores job listings posted by Recruiters.
+    """
     __tablename__ = "jobs"
 
+    # Basic Info
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     company: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -61,13 +102,16 @@ class Job(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Skills 
     skills: Mapped[list|str] = mapped_column(ARRAY(String), nullable=False, default=list)
-    skills_embedding: Mapped[int] = mapped_column(Vector(384), nullable=True)
+    
+    # AI BRAIN: The Vector Embedding of the job description
+    job_embedding: Mapped[int] = mapped_column(Vector(384), nullable=True)
 
-    # Link to User
+    # Owner (Recruiter)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     
-    # Timestamps 
+    # Metadata 
     job_posted: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -76,8 +120,12 @@ class Job(Base):
     owner: Mapped["User"] = relationship(back_populates="jobs")
     applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
 
-#4. Application Data
+
 class Application(Base):
+    """
+    **Application Table**
+    Connects a User (Seeker) to a Job.
+    """
     __tablename__ = "applications"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -88,19 +136,18 @@ class Application(Base):
     # To which job?
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     
-    # Status
+    # Status (Pending -> Accepted/Rejected)
     status = Column(SQLAEnum(ApplicationStatus), default=ApplicationStatus.PENDING, nullable=False)
     
-    # CV File 
+    # CV Snapshot 
     cv_file = Column(String, nullable=True) 
-    
     applied_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", back_populates="applications")
     job = relationship("Job", back_populates="applications")
 
-    # Prevent duplicate applications
+    # Constraint: Prevent a user from applying to the same job twice
     __table_args__ = (
         UniqueConstraint('user_id', 'job_id', name='unique_application_per_user'),
     )

@@ -22,12 +22,24 @@ from schemas import (
 
 router = APIRouter()
 
-# 1. REGISTER (Public)
 @router.post("", response_model=APIResponse[UserPrivate], status_code=status.HTTP_201_CREATED)
 async def create_user(
     user: UserCreate, 
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
+    """
+    **Register a New User**
+    
+    Creates a new account in the system.
+    
+    **Validation:**
+    - Checks if `username` is taken.
+    - Checks if `email` is already registered.
+    
+    **Logic:**
+    - Hashes the password before saving.
+    - Only sets `company_name` if the role is OWNER (Recruiter).
+    """
     # Check Username
     result = await db.execute(
         select(models.User).where(func.lower(models.User.username) == user.username.lower())
@@ -47,12 +59,12 @@ async def create_user(
     if user.role == models.Role.OWNER:
         user_company = user.company_name
 
-    # Create User
+    # Create User Object
     new_user = models.User(
         username=user.username,
         email=user.email.lower(),
-        hashed_password=hash_password(user.password), 
-        role=user.role,               
+        hashed_password=hash_password(user.password), # Hash the password
+        role=user.role,                
         company_name=user_company 
     )
     
@@ -67,14 +79,17 @@ async def create_user(
     )
     
 
-# 2. GET CURRENT USER PROFILE
 @router.get("/me", response_model=APIResponse[UserPrivate])
 async def get_current_user_profile(
     current_user: Annotated[models.User, Depends(get_current_user)]
 ):
     """
-    Get the currently authenticated user's profile.
-    Requires valid JWT token in Authorization header.
+    **Get My Profile**
+    
+    Returns the profile data of the currently logged-in user.
+    Uses the `get_current_user` dependency to validate the JWT token.
+    
+    **Response:** `UserPrivate` schema (includes email, role, etc.).
     """
     return APIResponse(
         success=True, 
@@ -82,12 +97,20 @@ async def get_current_user_profile(
         data=current_user
     )
 
-# 3. GET USER BY ID (Public)
+
 @router.get("/{user_id}", response_model=APIResponse[UserPublic])
 async def get_user(
     user_id: int, 
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    """
+    **Get Public User Profile**
+    
+    Retrieves basic information about a user by their ID.
+    
+    **Response:** `UserPublic` schema.
+    - Unlike `UserPrivate`, this schema hides sensitive fields like email and phone number.
+    """
     result = await db.execute(select(models.User).where(models.User.id == user_id))
     user = result.scalars().first()
     
@@ -100,9 +123,15 @@ async def get_user(
         data=user
     )
 
-# 4. GET USER'S JOBS
+
 @router.get("/{user_id}/job_posts", response_model=APIResponse[list[JobResponse]])
 async def get_user_job_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+    """
+    **Get Jobs Posted by User**
+    
+    Fetches all active job listings created by a specific Recruiter (Owner).
+    Useful for a "Company Page" or "Recruiter Profile" view.
+    """
     # Check if user exists first
     result = await db.execute(select(models.User).where(models.User.id == user_id))
     if not result.scalars().first():
@@ -123,7 +152,7 @@ async def get_user_job_posts(user_id: int, db: Annotated[AsyncSession, Depends(g
         data=jobs
     )
 
-# UPDATE USER ME
+
 @router.patch("/me", response_model=APIResponse[UserPrivate])
 async def update_user_me(
     user_update: UserUpdate,
@@ -131,7 +160,13 @@ async def update_user_me(
     current_user: Annotated[models.User, Depends(get_current_user)]
 ):
     """
-    Update current user's profile (Username, Email, Company Name, etc.)
+    **Update My Profile**
+    
+    Allows the logged-in user to change their own details.
+    
+    **Features:**
+    - Partial Updates: Only fields sent in the request are updated.
+    - Supports updating: Username, Email, Company Name, Profile Image.
     """
     # 1. Update fields if they are provided
     if user_update.username:
@@ -157,7 +192,7 @@ async def update_user_me(
     )
 
 
-# 6. UPDATE USER
+
 @router.patch("/{user_id}", response_model=APIResponse[UserPrivate])
 async def update_user(
     user_id: int,
@@ -165,6 +200,18 @@ async def update_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[models.User, Depends(get_current_user)],
 ):
+    """
+    **Update Any User (Admin/Self)**
+    
+    Similar to `update_user_me`, but accepts a `user_id`.
+    
+    **Security:**
+    - Strict check: Users can only update their OWN ID.
+    - Exception: `ADMIN` users can update anyone.
+    
+    **Validation:**
+    - Checks for username/email collisions before applying updates.
+    """
     # Only allow updating OWN profile (unless Admin)
     if current_user.id != user_id and current_user.role != models.Role.ADMIN:
         raise HTTPException(status_code=403, detail="Not authorized to update this profile")
@@ -208,14 +255,23 @@ async def update_user(
         data=user
     )
 
-# 7. DELETE USER (Protected)
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int, 
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[models.User, Depends(get_current_user)] 
 ):
-    # Only allow updating OWN profile (unless Admin)
+    """
+    **Delete Account**
+    
+    Permanently removes a user from the database.
+    
+    **Security:**
+    - Users can only delete their own account.
+    - Admins can delete any account.
+    """
+    # Authorization Check
     if current_user.id != user_id and current_user.role != models.Role.ADMIN:
         raise HTTPException(status_code=403, detail="Not authorized to delete this account")
 
