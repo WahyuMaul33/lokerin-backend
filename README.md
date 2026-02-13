@@ -32,6 +32,55 @@ graph TD
     end
 ```
 
+## 🗄️ Database Design (ERD)
+LokerIn uses a relational database enhanced with vector columns for AI operations.
+```mermaid
+erDiagram
+    Users ||--o{ Jobs : "posts (Recruiter)"
+    Users ||--o{ Applications : "applies (Seeker)"
+    Users ||--|| UserProfiles : "has"
+    Jobs ||--o{ Applications : "receives"
+
+    Users {
+        int id PK
+        string email
+        string hashed_password
+        enum role "SEEKER, RECRUITER"
+    }
+
+    UserProfiles {
+        int id PK
+        int user_id FK
+        vector profile_embedding "AI Vector (384-dim)"
+        json skills
+        string resume_url
+    }
+
+    Jobs {
+        int id PK
+        int owner_id FK
+        string title
+        vector job_embedding "AI Vector (384-dim)"
+        boolean is_remote
+    }
+
+    Applications {
+        int id PK
+        int user_id FK
+        int job_id FK
+        enum status "PENDING, ACCEPTED"
+    }
+```
+
+## 📋 Schema Details
+
+| Table | Description |
+|---|---|
+| Users | Handles Authentication & Role-Based Access (RBAC). |
+| UserProfiles | Stores candidate's extracted data. |
+| Jobs | Job listings posted by recruiters. | 
+| Applications | Links Users to Jobs. | 
+
 ## ✨ Key Features
 ### 🧠 AI & Vector Search Engine
 * **Semantic Resume Matching**: Uses *Cosine Similarity* to match candidates to jobs based on *meaning* (e.g., matching "React" skills to "Frontend" jobs), not just keywords.
